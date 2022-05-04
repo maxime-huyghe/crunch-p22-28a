@@ -1,13 +1,13 @@
 import csv
 import os
 import json
-from typing import Dict
+from typing import Dict, List
 from alive_progress import alive_bar
 
 
 def main():
     # load the last 200 patents
-    patents = get_patents(200)
+    patents = get_patents(10)
     print(patents)
 
 
@@ -15,7 +15,7 @@ JSON_CACHE_PATH = "ibm_patents/patent_metadata_with_keywords.json"
 ORIGINAL_PATENTS_PATH = "ibm_patents/patent_metadata.csv"
 
 
-def get_patents(n_to_get):
+def get_patents(n_to_get: int, write_cache: bool = True):
     """
     Loads the last `n_to_get` patents from the filesystem.
     """
@@ -36,13 +36,12 @@ def get_patents(n_to_get):
     # but we still want to keep it to write it back to disk.
     patents_with_keywords_to_return = {}
     with alive_bar(len(patents_to_process)) as progress_bar:
+        # Load patents and their data from cache or calculate the data (and complete the cache)
         for patent_metadata in patents_to_process:
             patent_name = patent_metadata["Name"]
             if patent_name not in patents_with_keywords:
-                # replace .pdf with .txt
-                # filename = patent_metadata["Name"].split(".")[0] + ".txt"
-                # with open("ibm_patents/texts/texts/" + filename) as patent_file:
-                patent = {"date": patent_metadata["Date_Filed"], "keywords": ["TODO"]}
+                keywords = get_patent_keywords(patent_name)
+                patent = {"date": patent_metadata["Date_Filed"], "keywords": keywords}
                 patents_with_keywords_to_return[patent_name] = patent
                 patents_with_keywords[patent_name] = patent
             else:  # read from cache
@@ -50,9 +49,44 @@ def get_patents(n_to_get):
                     patent_name
                 ]
             progress_bar()
-    with open(JSON_CACHE_PATH, "w") as file:
-        json.dump(patents_with_keywords, file)
+    # write the cache back to file
+    if write_cache:
+        with open(JSON_CACHE_PATH, "w") as file:
+            json.dump(patents_with_keywords, file, indent=2)
     return patents_with_keywords_to_return
+
+
+def get_patent_keywords(filename: str) -> List[Dict]:
+    import pyate
+    import spacy
+
+    # replace .pdf with .txt
+    filename = filename.split(".")[0] + ".txt"
+    try:
+        with open(f"ibm_patents/texts/texts/{filename}") as patent_file:
+            content = patent_file.read().replace("\n", " ")
+    except UnicodeDecodeError:
+        return []
+
+    nlp = spacy.load("en_core_web_sm")
+    nlp.add_pipe("combo_basic")
+
+    doc = nlp(content)
+    res = str(doc._.combo_basic.sort_values(ascending=False).head(5))
+    res_lines = res.splitlines()
+    res_lines.pop()
+
+    def entry_to_dict(entry: str) -> Dict:
+        keyword = entry.split("   ", 1)[0]
+        return {"keyword": keyword, "occurences": content.count(keyword)}
+
+    return list(map(entry_to_dict, res_lines))
+    # for keyword in res_lines:
+    #     r = element.split("   ", 1)
+    #     # r[1] = r[1].lstrip()
+    #     # del r[1]
+    #     # article = {"fileName": filename, "mot": r[0], "occurence": content.count(r[0])}
+    #     # print(article)
 
 
 if __name__ == "__main__":
