@@ -5,7 +5,9 @@ from alive_progress import alive_bar
 def main():
     # load the last 200 patents
     patents = get_patents(200)
-    print(patents.keys())
+    for patent in patents:
+        print(patent)
+        print("\n")
 
 
 def get_patents(n_to_get):
@@ -14,16 +16,16 @@ def get_patents(n_to_get):
     """
     with open("ibm_patents/patent_metadata.csv") as file:
         reader = csv.DictReader(file)
-        metadata = list(reader)
-    patents = {}
-    metadata.sort(key=lambda p: p["Date_Filed"], reverse=True)
+        patents = list(reader)
+    patents.sort(key=lambda p: p["Date_Filed"], reverse=True)
+    patents = patents[:n_to_get]
     # print(list(map(lambda p: p["Date_Filed"], metadata[:10])))
     with alive_bar(n_to_get) as progress_bar:
-        for patent_metadata in metadata[:n_to_get]:
+        for patent_metadata in patents:
             # replace .pdf with .txt
             patent_metadata["Name"].split(".")[0] + ".txt"
             with open("ibm_patents/patent_metadata.csv") as patent_file:
-                patents[patent_metadata["Name"]] = patent_file.read()
+                patent_metadata["Keywords"] = truc_pyate(patent_file.read())
             progress_bar()
     return patents
 
