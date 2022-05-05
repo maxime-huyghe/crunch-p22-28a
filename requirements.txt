@@ -1,1 +1,4 @@
 alive_progress == 2.4.1
+python_dateutil == 2.8.2
+pyate == 0.5.5
+spacy == 3.3.0
