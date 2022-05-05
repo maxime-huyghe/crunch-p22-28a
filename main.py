@@ -15,15 +15,16 @@ JSON_CACHE_PATH = "ibm_patents/patent_metadata_with_keywords.json"
 ORIGINAL_PATENTS_PATH = "ibm_patents/patent_metadata.csv"
 
 
-def get_patents(n_to_get: int, write_cache: bool = True):
+def get_patents(n_to_get: int, write_cache: bool = True) -> Dict[str, Dict[str, Any]]:
     """
-    Loads the last `n_to_get` patents from the filesystem.
+    Loads the last `n_to_get` patents from the filesystem,
+    with their metadata.
+    See the json file for the returned data's shape.
     """
     with open(ORIGINAL_PATENTS_PATH) as file:
         reader = csv.DictReader(file)
         patents = list(reader)
     patents_with_keywords: Dict = {}
-    # a+ = append or create, can also read
     if os.path.exists(JSON_CACHE_PATH):
         with open(JSON_CACHE_PATH, "r") as file:
             patents_with_keywords = json.load(file)
@@ -65,7 +66,7 @@ def get_patent_keywords(filename: str) -> List[Dict]:
     try:
         with open(f"ibm_patents/texts/texts/{filename}") as patent_file:
             content = patent_file.read().replace("\n", " ")
-    except UnicodeDecodeError:
+    except:
         return []
 
     nlp = spacy.load("en_core_web_sm")
@@ -81,12 +82,6 @@ def get_patent_keywords(filename: str) -> List[Dict]:
         return {"keyword": keyword, "occurences": content.count(keyword)}
 
     return list(map(entry_to_dict, res_lines))
-    # for keyword in res_lines:
-    #     r = element.split("   ", 1)
-    #     # r[1] = r[1].lstrip()
-    #     # del r[1]
-    #     # article = {"fileName": filename, "mot": r[0], "occurence": content.count(r[0])}
-    #     # print(article)
 
 
 if __name__ == "__main__":
