@@ -1,4 +1,5 @@
 import csv
+from functools import reduce
 import itertools
 import json
 import os
@@ -8,6 +9,8 @@ from alive_progress import alive_bar
 from dateutil import rrule
 from datetime import datetime, timedelta
 import argparse
+import numpy
+from scipy.stats.mstats import gmean
 
 TW = 0.05
 
@@ -126,11 +129,10 @@ def main():
             for key in dov_keys_with_keyword
             if "increasing_rate" in dovs[key]
         ]
+        # Geometric means
         keywords_averages[keyword] = {
-            "dod": sum([dods[key]["dod"] for key in dod_keys_with_keyword])
-            / len(dod_keys_with_keyword),
-            "dov": sum([dovs[key]["dov"] for key in dov_keys_with_keyword])
-            / len(dov_keys_with_keyword),
+            "dod": gmean([dods[key]["dod"] for key in dod_keys_with_keyword]),
+            "dov": gmean([dovs[key]["dov"] for key in dov_keys_with_keyword]),
             "dod_increasing_rate": sum(dod_increasing_rates) / len(dod_increasing_rates)
             if len(dod_increasing_rates) != 0
             else 0,
@@ -138,8 +140,9 @@ def main():
             if len(dov_increasing_rates) != 0
             else 0,
         }
-    with open("out.json", "w") as f:
-        json.dump(keywords_averages, f, indent=2, sort_keys=True)
+    with open("out", "w") as f:
+        f.write(str(keywords_averages))
+    print(keywords_averages)
 
     export_png(
         [
