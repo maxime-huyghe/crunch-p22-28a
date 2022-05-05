@@ -1,13 +1,12 @@
 import csv
-from datetime import date
-from itertools import count
 import itertools
-import os
 import json
-from typing import Any, Dict, List, Sequence, Set, TypedDict
+import os
+from datetime import datetime
+from typing import Any, Dict, List, Set
+
 from alive_progress import alive_bar
 from dateutil import rrule
-from datetime import datetime, timedelta
 
 TW = 0.05
 
@@ -147,7 +146,6 @@ def get_patents(n_to_get: int, write_cache: bool = True) -> Dict[str, Dict[str, 
 
 
 def get_patent_keywords(filename: str) -> List[Dict]:
-    import pyate
     import spacy
 
     # replace .pdf with .txt
