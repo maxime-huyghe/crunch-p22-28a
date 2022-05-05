@@ -4,16 +4,21 @@ import json
 import os
 from datetime import datetime
 from typing import Any, Dict, List, Set
-
 from alive_progress import alive_bar
 from dateutil import rrule
+from datetime import datetime, timedelta
+import argparse
 
 TW = 0.05
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-n", type=int, default=1000)
+    args = parser.parse_args()
+    n_to_get = vars(args)["n"]
     # load the last x patents
-    patents = get_patents(1000)
+    patents = get_patents(n_to_get)
     patent_list = patents.values()
     # Sort by date.
     patent_list = sorted(patent_list, key=lambda p: p["date"])
@@ -24,47 +29,41 @@ def main():
         return patent
 
     patent_list = list(map(date_to_datetime, patent_list))
-    # The number of documents in each month.
-    documents_per_month = {}
+    # The number of documents in each year.
+    documents_per_year = {}
     for patent in patent_list:
         date: datetime = patent["date"]
-        month = datetime(date.year, date.month, 1)
-        if month in documents_per_month:
-            documents_per_month[month] += 1
+        year = datetime(date.year, 1, 1)
+        if year in documents_per_year:
+            documents_per_year[year] += 1
         else:
-            documents_per_month[month] = 0
-    number_of_months = len(documents_per_month)
+            documents_per_year[year] = 0
+    number_of_years = len(documents_per_year)
     # Every unique keyword present in an article.
     unique_keywords: Set[str] = set()
     for patent in patent_list:
         for keyword_data in patent["keywords"]:
             unique_keywords.add(keyword_data["keyword"])
-    month_list = sorted(documents_per_month.keys())
-    first_month = month_list[0]
-    last_month = month_list[-1]
-    for [idx, month] in zip(
+    year_list = sorted(documents_per_year.keys())
+    first_year = year_list[0]
+    last_year = year_list[-1]
+    dods = {}  # {[keyword, year] -> dod}
+    dovs = {}
+
+    for [idx, year] in zip(
         itertools.count(start=0, step=1),
-        rrule.rrule(rrule.MONTHLY, dtstart=first_month, until=last_month),
+        rrule.rrule(rrule.YEARLY, dtstart=first_year, until=last_year),
     ):
-        patents_in_month = [
-            patent
-            for patent in patent_list
-            if patent["date"].month == month.month and patent["date"].year == month.year
+        print(year)
+        patents_in_year = [
+            patent for patent in patent_list if patent["date"].year == year.year
         ]
         for keyword in unique_keywords:
             patents_containing_keyword = [
                 patent
-                for patent in patents_in_month
+                for patent in patents_in_year
                 if any([k["keyword"] == keyword for k in patent["keywords"]])
             ]
-            # docs_containing_keyword = list(
-            #     filter(
-            #         lambda p: any(
-            #             map(lambda k: k["keyword"] == keyword, p["keywords"])
-            #         ),
-            #         patents_in_month,
-            #     )
-            # )
             df = len(patents_containing_keyword)
 
             def extract_occurences(patent, keyword):
@@ -83,20 +82,62 @@ def main():
                 # There should only be one item, we can take do [0].
                 for patent in patents_containing_keyword
             ]
-            # occurences_of_keyword_in_each_patent = map(
-            #     lambda p: filter(
-            #         lambda kw: kw["keyword"] == keyword, p["keywords"]
-            #     ).__next__()["occurences"],
-            #     patents_containing_keyword,
-            # )
             tf = sum(occurences_of_keyword_in_each_patent)
 
-            nn = documents_per_month[month]
+            nn = documents_per_year[year]
 
             intermediate_value = ((1 - TW) * idx) / nn
 
-            print(date.year, date.month, keyword, "dod", df * intermediate_value)
-            print(date.year, date.month, keyword, "dov", tf * intermediate_value)
+            dod = df * intermediate_value
+            dods[(keyword, year.year)] = {"dod": dod}
+            if (keyword, year.year - 1) in dods:
+                old_value = dods[(keyword, year.year - 1)]["dod"]
+                if old_value != 0:
+                    increasing_rate = (dod - old_value) / old_value
+                    dods[(keyword, year.year)]["increasing_rate"] = increasing_rate
+                else:
+                    # increasing_rate = 1
+                    pass
+            dov = tf * intermediate_value
+            dovs[(keyword, year.year)] = {"dov": dov}
+            if (keyword, year.year - 1) in dovs:
+                old_value = dovs[(keyword, year.year - 1)]["dov"]
+                if old_value != 0:
+                    increasing_rate = (dov - old_value) / old_value
+                    dovs[(keyword, year.year)]["increasing_rate"] = increasing_rate
+                else:
+                    # increasing_rate = 1
+                    pass
+    # print(dods)
+    # print(dovs)
+
+    keywords_averages = {}
+    for keyword in unique_keywords:
+        dod_keys_with_keyword = [key for key in dods.keys() if key[0] == keyword]
+        dov_keys_with_keyword = [key for key in dovs.keys() if key[0] == keyword]
+        length = len(dod_keys_with_keyword)
+        keywords_averages[keyword] = {
+            "dod": sum([dods[key]["dod"] for key in dod_keys_with_keyword]) / length,
+            "dov": sum([dovs[key]["dov"] for key in dov_keys_with_keyword]) / length,
+            "dod_increasing_rate": sum(
+                [
+                    dods[key]["increasing_rate"]
+                    for key in dod_keys_with_keyword
+                    if "increasing_rate" in dods[key]
+                ]
+            )
+            / length,
+            "dov_increasing_rate": sum(
+                [
+                    dovs[key]["increasing_rate"]
+                    for key in dov_keys_with_keyword
+                    if "increasing_rate" in dovs[key]
+                ]
+            )
+            / length,
+        }
+    with open("out.json", "w") as f:
+        json.dump(keywords_averages, f, indent=2, sort_keys=True)
 
 
 JSON_CACHE_PATH = "ibm_patents/patent_metadata_with_keywords.json"
