@@ -1,14 +1,103 @@
 import csv
+from datetime import date
+from itertools import count
+import itertools
 import os
 import json
-from typing import Dict, List
+from typing import Any, Dict, List, Sequence, Set, TypedDict
 from alive_progress import alive_bar
+from dateutil import rrule
+from datetime import datetime, timedelta
+
+TW = 0.05
 
 
 def main():
-    # load the last 200 patents
-    patents = get_patents(10)
-    print(patents)
+    # load the last x patents
+    patents = get_patents(1000)
+    patent_list = patents.values()
+    # Sort by date.
+    patent_list = sorted(patent_list, key=lambda p: p["date"])
+    # Convert dates to datetime
+    def date_to_datetime(patent):
+        [year, month, day] = patent["date"].split("-")
+        patent["date"] = datetime(int(year), int(month), int(day))
+        return patent
+
+    patent_list = list(map(date_to_datetime, patent_list))
+    # The number of documents in each month.
+    documents_per_month = {}
+    for patent in patent_list:
+        date: datetime = patent["date"]
+        month = datetime(date.year, date.month, 1)
+        if month in documents_per_month:
+            documents_per_month[month] += 1
+        else:
+            documents_per_month[month] = 0
+    number_of_months = len(documents_per_month)
+    # Every unique keyword present in an article.
+    unique_keywords: Set[str] = set()
+    for patent in patent_list:
+        for keyword_data in patent["keywords"]:
+            unique_keywords.add(keyword_data["keyword"])
+    month_list = sorted(documents_per_month.keys())
+    first_month = month_list[0]
+    last_month = month_list[-1]
+    for [idx, month] in zip(
+        itertools.count(start=0, step=1),
+        rrule.rrule(rrule.MONTHLY, dtstart=first_month, until=last_month),
+    ):
+        patents_in_month = [
+            patent
+            for patent in patent_list
+            if patent["date"].month == month.month and patent["date"].year == month.year
+        ]
+        for keyword in unique_keywords:
+            patents_containing_keyword = [
+                patent
+                for patent in patents_in_month
+                if any([k["keyword"] == keyword for k in patent["keywords"]])
+            ]
+            # docs_containing_keyword = list(
+            #     filter(
+            #         lambda p: any(
+            #             map(lambda k: k["keyword"] == keyword, p["keywords"])
+            #         ),
+            #         patents_in_month,
+            #     )
+            # )
+            df = len(patents_containing_keyword)
+
+            def extract_occurences(patent, keyword):
+                matching_keywords = [
+                    k["occurences"]
+                    for k in patent["keywords"]
+                    if k["keyword"] == keyword
+                ]
+                if len(matching_keywords) != 0:
+                    return matching_keywords[0]
+                else:
+                    return 0
+
+            occurences_of_keyword_in_each_patent = [
+                extract_occurences(patent, keyword)
+                # There should only be one item, we can take do [0].
+                for patent in patents_containing_keyword
+            ]
+            # occurences_of_keyword_in_each_patent = map(
+            #     lambda p: filter(
+            #         lambda kw: kw["keyword"] == keyword, p["keywords"]
+            #     ).__next__()["occurences"],
+            #     patents_containing_keyword,
+            # )
+            tf = sum(occurences_of_keyword_in_each_patent)
+
+            nn = documents_per_month[month]
+
+            intermediate_value = ((1 - TW) * idx) / nn
+
+            print(date.year, date.month, keyword, "dod", df * intermediate_value)
+            print(date.year, date.month, keyword, "dov", tf * intermediate_value)
 
 
 JSON_CACHE_PATH = "ibm_patents/patent_metadata_with_keywords.json"
