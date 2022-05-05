@@ -86,7 +86,8 @@ def main():
 
             nn = documents_per_year[year]
 
-            intermediate_value = ((1 - TW) * idx) / nn
+            # pas idx mais nb de périodes - idx
+            intermediate_value = (1 - TW * (len(year_list) - idx)) / nn
 
             dod = df * intermediate_value
             dods[(keyword, year.year)] = {"dod": dod}
@@ -143,8 +144,8 @@ def main():
         [
             (
                 keyword,
-                keywords_averages[keyword]["dod"],
-                keywords_averages[keyword]["dod_increasing_rate"],
+                keywords_averages[keyword]["dov"],
+                keywords_averages[keyword]["dov_increasing_rate"],
             )
             for keyword in keywords_averages.keys()
         ]
@@ -248,7 +249,7 @@ def export_png(data: List[Tuple[str, int, int]], filename: str = "out.png"):
     # on les ajoute dans un tableau de x et de y
     # on écrit les mots correspondant directement dans la boucle
     for j in data:
-        if j[2] != 0:
+        if j[1] != 0 and j[2] > 0:
             x.append(j[1])
             y.append(j[2])
             plt.text(j[1], j[2], j[0], fontsize=12)
@@ -265,8 +266,7 @@ def export_png(data: List[Tuple[str, int, int]], filename: str = "out.png"):
 
     # librairie qui détermine les centres des clusters, il y en a 3 pour le noises, weak signals et strong signals
     xy = np.dstack((x, y))
-    xy = xy[0]
-    model = KMeans(3).fit(xy)
+    model = KMeans(3).fit(xy[0])
 
     # le nombre de couleurs en fonction du nombre de clusters
     colors = [i for i in model.labels_]
@@ -277,7 +277,7 @@ def export_png(data: List[Tuple[str, int, int]], filename: str = "out.png"):
     # on affiche les points avce les différentes couleurs des clusters
     plt.scatter(x, y, c=colors)
 
-    plt.title("DoD")
+    plt.title("DoV")
     plt.xlabel("x")
     plt.ylabel("y")
     plt.savefig(filename)
