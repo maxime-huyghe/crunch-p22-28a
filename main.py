@@ -109,33 +109,34 @@ def main():
                 else:
                     # increasing_rate = 1
                     pass
-    # print(dods)
-    # print(dovs)
+    print(dods)
+    print(dovs)
 
     keywords_averages = {}
     for keyword in unique_keywords:
         dod_keys_with_keyword = [key for key in dods.keys() if key[0] == keyword]
         dov_keys_with_keyword = [key for key in dovs.keys() if key[0] == keyword]
-        length = len(dod_keys_with_keyword)
+        dod_increasing_rates = [
+            dods[key]["increasing_rate"]
+            for key in dod_keys_with_keyword
+            if "increasing_rate" in dods[key]
+        ]
+        dov_increasing_rates = [
+            dovs[key]["increasing_rate"]
+            for key in dov_keys_with_keyword
+            if "increasing_rate" in dovs[key]
+        ]
         keywords_averages[keyword] = {
-            "dod": sum([dods[key]["dod"] for key in dod_keys_with_keyword]) / length,
-            "dov": sum([dovs[key]["dov"] for key in dov_keys_with_keyword]) / length,
-            "dod_increasing_rate": sum(
-                [
-                    dods[key]["increasing_rate"]
-                    for key in dod_keys_with_keyword
-                    if "increasing_rate" in dods[key]
-                ]
-            )
-            / length,
-            "dov_increasing_rate": sum(
-                [
-                    dovs[key]["increasing_rate"]
-                    for key in dov_keys_with_keyword
-                    if "increasing_rate" in dovs[key]
-                ]
-            )
-            / length,
+            "dod": sum([dods[key]["dod"] for key in dod_keys_with_keyword])
+            / len(dod_keys_with_keyword),
+            "dov": sum([dovs[key]["dov"] for key in dov_keys_with_keyword])
+            / len(dov_keys_with_keyword),
+            "dod_increasing_rate": sum(dod_increasing_rates) / len(dod_increasing_rates)
+            if len(dod_increasing_rates) != 0
+            else 0,
+            "dov_increasing_rate": sum(dov_increasing_rates) / len(dov_increasing_rates)
+            if len(dov_increasing_rates) != 0
+            else 0,
         }
     with open("out.json", "w") as f:
         json.dump(keywords_averages, f, indent=2, sort_keys=True)
@@ -249,20 +250,20 @@ def export_png(data: List[Tuple[str, int, int]], filename: str = "out.png"):
     # on les ajoute dans un tableau de x et de y
     # on écrit les mots correspondant directement dans la boucle
     for j in data:
-        if j[1] != 0 and j[2] > 0:
-            x.append(j[1])
-            y.append(j[2])
-            plt.text(j[1], j[2], j[0], fontsize=12)
+        # if j[1] != 0 and j[2] > 0:
+        x.append(j[1])
+        y.append(j[2])
+        plt.text(j[1], j[2], j[0], fontsize=12)
 
     # on fusionne les en un tableau xy
     xy.append(x)
     xy.append(y)
 
-    print('#############"')
-    print(x)
-    print(y)
-    print('#############"')
-    print(xy)
+    # print('#############"')
+    # print(x)
+    # print(y)
+    # print('#############"')
+    # print(xy)
 
     # librairie qui détermine les centres des clusters, il y en a 3 pour le noises, weak signals et strong signals
     xy = np.dstack((x, y))
@@ -271,8 +272,8 @@ def export_png(data: List[Tuple[str, int, int]], filename: str = "out.png"):
     # le nombre de couleurs en fonction du nombre de clusters
     colors = [i for i in model.labels_]
 
-    print('############# center"')
-    print(model.cluster_centers_)
+    # print('############# center"')
+    # print(model.cluster_centers_)
 
     # on affiche les points avce les différentes couleurs des clusters
     plt.scatter(x, y, c=colors)
